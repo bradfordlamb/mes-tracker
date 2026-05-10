@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MES Signal</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #050709;
+  --s1:       #0a0e12;
+  --s2:       #0f1419;
+  --s3:       #161d25;
+  --border:   #1a2535;
+  --green:    #00ff88;
+  --green2:   #00c864;
+  --green-bg: rgba(0,255,136,0.06);
+  --red:      #ff2d55;
+  --red2:     #cc2244;
+  --red-bg:   rgba(255,45,85,0.06);
+  --amber:    #ffb800;
+  --amber-bg: rgba(255,184,0,0.06);
+  --blue:     #4d9eff;
+  --blue-bg:  rgba(77,158,255,0.06);
+  --white:    #f0f4f8;
+  --muted:    #2d3f52;
+  --text:     #6b8099;
+  --mono:     'DM Mono', monospace;
+  --sans:     'DM Sans', sans-serif;
+  --display:  'Bebas Neue', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Grid texture */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(0,255,136,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,.018) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.app { position: relative; z-index: 1; max-width: 480px; margin: 0 auto; padding: 20px 16px 80px; }
+
+/* ── HEADER ──────────────────────────────────── */
+.hdr {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 24px;
+}
+.hdr-left {}
+.hdr-tag {
+  font-family: var(--mono);
+  font-size: 9px; letter-spacing: 4px;
+  color: var(--green); text-transform: uppercase;
+  margin-bottom: 4px; opacity: .7;
+}
+.hdr-title {
+  font-family: var(--display);
+  font-size: 42px; line-height: .9;
+  color: var(--white); letter-spacing: 1px;
+}
+.hdr-title span { color: var(--green); }
+.hdr-right { text-align: right; }
+.hdr-clock {
+  font-family: var(--mono);
+  font-size: 20px; color: var(--white);
+  letter-spacing: 2px; line-height: 1;
+}
+.hdr-date {
+  font-family: var(--mono);
+  font-size: 9px; color: var(--muted);
+  margin-top: 4px; letter-spacing: 1px;
+}
+
+/* ── MAIN SIGNAL CARD ────────────────────────── */
+.signal-wrap { margin-bottom: 16px; }
+
+.signal-card {
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  overflow: hidden;
+  transition: border-color .4s, box-shadow .4s;
+}
+.signal-card.long  { border-color: var(--green); box-shadow: 0 0 40px rgba(0,255,136,.08); }
+.signal-card.short { border-color: var(--red);   box-shadow: 0 0 40px rgba(255,45,85,.08); }
+.signal-card.wait  { border-color: var(--amber); }
+.signal-card.skip  { border-color: var(--muted); }
+.signal-card.none  { border-color: var(--muted); }
+
+.sig-top {
+  padding: 20px;
+  display: flex; align-items: center; gap: 16px;
+}
+.sig-top.long  { background: var(--green-bg); }
+.sig-top.short { background: var(--red-bg); }
+.sig-top.wait  { background: var(--amber-bg); }
+.sig-top.skip  { background: var(--s2); }
+.sig-top.none  { background: var(--s2); }
+
+.sig-icon { font-size: 42px; line-height: 1; flex-shrink: 0; }
+
+.sig-status {
+  font-family: var(--display);
+  font-size: 38px; line-height: .9;
+  letter-spacing: 1px;
+}
+.sig-status.long  { color: var(--green); }
+.sig-status.short { color: var(--red); }
+.sig-status.wait  { color: var(--amber); }
+.sig-status.skip  { color: var(--muted); }
+.sig-status.none  { color: var(--muted); }
+
+.sig-sub {
+  font-size: 12px; color: var(--text);
+  margin-top: 4px; line-height: 1.5;
+}
+
+/* Trade levels */
+.sig-levels {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px; background: var(--border);
+  border-top: 1px solid var(--border);
+}
+.sig-level {
+  background: var(--s1);
+  padding: 14px 12px; text-align: center;
+}
+.sig-level-lbl {
+  font-family: var(--mono);
+  font-size: 8px; letter-spacing: 2px;
+  color: var(--muted); text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.sig-level-val {
+  font-family: var(--mono);
+  font-size: 17px; color: var(--white);
+  font-weight: 500;
+}
+.sig-level-val.entry { color: var(--blue); }
+.sig-level-val.target { color: var(--green); }
+.sig-level-val.stop { color: var(--red); }
+.sig-level-sub { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+/* ── MARKET DATA CHIPS ───────────────────────── */
+.chips {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px; margin-bottom: 16px;
+}
+.chip {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px;
+}
+.chip-lbl {
+  font-family: var(--mono);
+  font-size: 8px; letter-spacing: 2px;
+  color: var(--muted); text-transform: uppercase;
+  margin-bottom: 5px;
+}
+.chip-val {
+  font-family: var(--mono);
+  font-size: 16px; color: var(--white);
+  font-weight: 500;
+}
+.chip-val.green { color: var(--green); }
+.chip-val.red   { color: var(--red); }
+.chip-val.amber { color: var(--amber); }
+.chip-val.blue  { color: var(--blue); }
+.chip-val.muted { color: var(--muted); }
+
+/* ── CONTROLS ────────────────────────────────── */
+.controls { display: flex; gap: 8px; margin-bottom: 20px; }
+.btn {
+  font-family: var(--mono);
+  font-size: 10px; letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 11px 16px; border-radius: 6px;
+  border: none; cursor: pointer;
+  transition: opacity .15s, transform .1s;
+  flex: 1;
+}
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--green); color: #000; font-weight: 500; }
+.btn-primary:hover { opacity: .85; }
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.btn-outline:hover { border-color: var(--green); color: var(--green); }
+.btn-danger {
+  background: transparent;
+  border: 1px solid var(--red);
+  color: var(--red);
+}
+
+/* ── LOG ENTRY FORM ──────────────────────────── */
+.log-form-card {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+  margin-bottom: 16px;
+}
+.log-form-hdr {
+  padding: 10px 16px;
+  background: var(--s3);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 9px; letter-spacing: 3px;
+  color: var(--green); text-transform: uppercase;
+  cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.log-form-body { padding: 14px; display: none; }
+.log-form-body.open { display: block; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.form-field { display: flex; flex-direction: column; gap: 4px; }
+.form-lbl {
+  font-family: var(--mono);
+  font-size: 8px; letter-spacing: 2px;
+  color: var(--muted); text-transform: uppercase;
+}
+.form-inp {
+  background: var(--s1);
+  border: 1px solid var(--border);
+  color: var(--white);
+  font-family: var(--mono); font-size: 13px;
+  padding: 8px 10px; border-radius: 5px;
+  outline: none; width: 100%;
+  transition: border-color .15s;
+}
+.form-inp:focus { border-color: var(--green); }
+select.form-inp option { background: #0f1419; }
+.form-submit {
+  width: 100%; margin-top: 8px;
+  background: var(--green); color: #000;
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 2px; text-transform: uppercase;
+  padding: 10px; border-radius: 5px;
+  border: none; cursor: pointer; font-weight: 500;
+}
+
+/* ── TRADE JOURNAL ───────────────────────────── */
+.journal-card {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+.journal-hdr {
+  padding: 10px 16px;
+  background: var(--s3);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 9px; letter-spacing: 3px;
+  color: var(--green); text-transform: uppercase;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.journal-stats {
+  display: grid; grid-template-columns: repeat(4,1fr);
+  gap: 1px; background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.jstat {
+  background: var(--s1);
+  padding: 10px 8px; text-align: center;
+}
+.jstat-lbl {
+  font-family: var(--mono);
+  font-size: 7px; letter-spacing: 1px;
+  color: var(--muted); text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.jstat-val {
+  font-family: var(--mono);
+  font-size: 14px; color: var(--white);
+}
+.jstat-val.green { color: var(--green); }
+.jstat-val.red   { color: var(--red); }
+
+.journal-list { max-height: 420px; overflow-y: auto; }
+.journal-empty {
+  padding: 40px 20px; text-align: center;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--muted);
+}
+
+.jrow {
+  border-bottom: 1px solid rgba(26,37,53,.6);
+  padding: 12px 16px;
+  display: flex; align-items: center; gap: 12px;
+  transition: background .1s; cursor: pointer;
+}
+.jrow:hover { background: rgba(255,255,255,.015); }
+.jrow:last-child { border-bottom: none; }
+
+.jrow-date {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--muted); flex-shrink: 0; width: 58px;
+}
+.jrow-badge {
+  font-family: var(--mono); font-size: 9px;
+  font-weight: 500; letter-spacing: 2px;
+  padding: 3px 8px; border-radius: 3px;
+  flex-shrink: 0; width: 54px; text-align: center;
+}
+.jrow-badge.long  { background: rgba(0,255,136,.12); color: var(--green); }
+.jrow-badge.short { background: rgba(255,45,85,.12);  color: var(--red); }
+.jrow-badge.skip  { background: rgba(45,63,82,.3);    color: var(--muted); }
+.jrow-badge.none  { background: rgba(45,63,82,.3);    color: var(--muted); }
+.jrow-badge.win   { background: rgba(0,255,136,.12); color: var(--green); }
+.jrow-badge.loss  { background: rgba(255,45,85,.12);  color: var(--red); }
+
+.jrow-info { flex: 1; }
+.jrow-levels {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--text); line-height: 1.5;
+}
+.jrow-note {
+  font-size: 11px; color: var(--muted);
+  margin-top: 2px;
+}
+.jrow-pnl {
+  font-family: var(--mono); font-size: 13px;
+  font-weight: 500; flex-shrink: 0;
+  text-align: right;
+}
+.jrow-pnl.pos { color: var(--green); }
+.jrow-pnl.neg { color: var(--red); }
+.jrow-pnl.neu { color: var(--muted); }
+
+.jrow-del {
+  font-size: 14px; color: var(--muted);
+  cursor: pointer; padding: 4px;
+  flex-shrink: 0; opacity: .5;
+}
+.jrow-del:hover { opacity: 1; color: var(--red); }
+
+/* ── STATUS BAR ──────────────────────────────── */
+.status-bar {
+  background: var(--s2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 14px;
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 16px;
+  font-family: var(--mono); font-size: 10px;
+}
+.status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--muted); flex-shrink: 0;
+}
+.status-dot.live { background: var(--green); animation: pulse 2s infinite; }
+.status-dot.warn { background: var(--amber); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.status-msg { color: var(--text); flex: 1; }
+.status-time { color: var(--muted); }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── FOOTER ──────────────────────────────────── */
+.footer {
+  text-align: center; padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono); font-size: 9px;
+  color: var(--muted); line-height: 2.2; letter-spacing: 1px;
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-left">
+      <div class="hdr-tag">MES Futures · ORB</div>
+      <div class="hdr-title">Daily<br><span>Signal</span></div>
+    </div>
+    <div class="hdr-right">
+      <div class="hdr-clock" id="clock">--:--:--</div>
+      <div class="hdr-date" id="hdr-date">Central Time</div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <div class="status-dot" id="sdot"></div>
+    <div class="status-msg" id="smsg">Loading...</div>
+    <div class="status-time" id="stime">--</div>
+  </div>
+
+  <!-- Main signal card -->
+  <div class="signal-wrap">
+    <div class="signal-card wait" id="sig-card">
+      <div class="sig-top wait" id="sig-top">
+        <div class="sig-icon" id="sig-icon">⏳</div>
+        <div>
+          <div class="sig-status wait" id="sig-status">LOADING</div>
+          <div class="sig-sub" id="sig-sub">Fetching market data...</div>
+        </div>
+      </div>
+      <div id="sig-levels" style="display:none" class="sig-levels">
+        <div class="sig-level">
+          <div class="sig-level-lbl">Entry</div>
+          <div class="sig-level-val entry" id="lv-entry">---</div>
+          <div class="sig-level-sub">OR breakout</div>
+        </div>
+        <div class="sig-level">
+          <div class="sig-level-lbl">Target +15pts</div>
+          <div class="sig-level-val target" id="lv-target">---</div>
+          <div class="sig-level-sub" id="lv-target-sub">---</div>
+        </div>
+        <div class="sig-level">
+          <div class="sig-level-lbl">Stop −10pts</div>
+          <div class="sig-level-val stop" id="lv-stop">---</div>
+          <div class="sig-level-sub" id="lv-stop-sub">---</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Market chips -->
+  <div class="chips">
+    <div class="chip">
+      <div class="chip-lbl">OR High</div>
+      <div class="chip-val amber" id="c-orh">---</div>
+    </div>
+    <div class="chip">
+      <div class="chip-lbl">OR Low</div>
+      <div class="chip-val amber" id="c-orl">---</div>
+    </div>
+    <div class="chip">
+      <div class="chip-lbl">OR Range</div>
+      <div class="chip-val" id="c-orw">---</div>
+    </div>
+    <div class="chip">
+      <div class="chip-lbl">VWAP</div>
+      <div class="chip-val blue" id="c-vwap">---</div>
+    </div>
+    <div class="chip">
+      <div class="chip-lbl">Current Price</div>
+      <div class="chip-val green" id="c-price">---</div>
+    </div>
+    <div class="chip">
+      <div class="chip-lbl">Price vs VWAP</div>
+      <div class="chip-val" id="c-pvwap">---</div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn btn-primary" onclick="fetchNow()">↻ Refresh</button>
+    <button class="btn btn-outline" onclick="toggleLogForm()">+ Log Trade</button>
+  </div>
+
+  <!-- Log trade form -->
+  <div class="log-form-card" id="log-form-card" style="display:none">
+    <div class="log-form-hdr" onclick="toggleLogForm()">
+      <span>Log Today's Trade</span>
+      <span id="form-chevron">▾</span>
+    </div>
+    <div class="log-form-body open" id="log-form-body">
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-lbl">Date</label>
+          <input class="form-inp" id="f-date" type="date">
+        </div>
+        <div class="form-field">
+          <label class="form-lbl">Signal</label>
+          <select class="form-inp" id="f-signal">
+            <option value="long">Long</option>
+            <option value="short">Short</option>
+            <option value="skip">Skip — Wide Range</option>
+            <option value="none">No Signal</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-lbl">Entry</label>
+          <input class="form-inp" id="f-entry" type="number" step="0.25" placeholder="0.00">
+        </div>
+        <div class="form-field">
+          <label class="form-lbl">Result</label>
+          <select class="form-inp" id="f-result">
+            <option value="">-- select --</option>
+            <option value="win">Win (Target Hit)</option>
+            <option value="loss">Loss (Stop Hit)</option>
+            <option value="be">Break Even</option>
+            <option value="na">N/A (No Trade)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-lbl">P&L ($)</label>
+          <input class="form-inp" id="f-pnl" type="number" step="1" placeholder="0">
+        </div>
+        <div class="form-field">
+          <label class="form-lbl">OR Range (pts)</label>
+          <input class="form-inp" id="f-range" type="number" step="0.25" placeholder="0.00">
+        </div>
+      </div>
+      <div class="form-field" style="margin-bottom:8px">
+        <label class="form-lbl">Notes</label>
+        <input class="form-inp" id="f-notes" type="text" placeholder="Optional notes...">
+      </div>
+      <button class="form-submit" onclick="saveEntry()">Save Entry</button>
+    </div>
+  </div>
+
+  <!-- Journal -->
+  <div class="journal-card">
+    <div class="journal-hdr">
+      <span>Trade Journal</span>
+      <span id="j-count" style="color:var(--muted)">0 days</span>
+    </div>
+    <div class="journal-stats" id="j-stats">
+      <div class="jstat"><div class="jstat-lbl">Trades</div><div class="jstat-val" id="js-trades">0</div></div>
+      <div class="jstat"><div class="jstat-lbl">Wins</div><div class="jstat-val green" id="js-wins">0</div></div>
+      <div class="jstat"><div class="jstat-lbl">Win %</div><div class="jstat-val" id="js-wr">--</div></div>
+      <div class="jstat"><div class="jstat-lbl">Total P&L</div><div class="jstat-val" id="js-pnl">$0</div></div>
+    </div>
+    <div class="journal-list" id="j-list">
+      <div class="journal-empty">No trades logged yet.<br>Check back after your first session.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    MES · $5/pt · 5 contracts · 9:00–11:30 AM CT<br>
+    OR window: 8:30–8:44 AM · Stop: 10pts · Target: 15pts<br>
+    <span style="color:var(--red)">Not financial advice · Verify all signals before trading</span>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════
+const SL = 10, PT = 15, CONTRACTS = 5;
+const MAX_OR = 35; // skip if wider than this
+
+// ═══════════════════════════════════════════════
+// STORAGE — persists across sessions
+// ═══════════════════════════════════════════════
+function getJournal() {
+  try { return JSON.parse(localStorage.getItem('mes_journal') || '[]'); }
+  catch { return []; }
+}
+function saveJournal(arr) {
+  localStorage.setItem('mes_journal', JSON.stringify(arr));
+}
+
+// ═══════════════════════════════════════════════
+// CLOCK
+// ═══════════════════════════════════════════════
+function ct() {
+  return new Date(new Date().toLocaleString('en-US', {timeZone:'America/Chicago'}));
+}
+function fmt2(n) { return String(n).padStart(2,'0'); }
+function fmtTime(d) { return `${fmt2(d.getHours())}:${fmt2(d.getMinutes())}:${fmt2(d.getSeconds()}`; }
+function toMins(d) { return d.getHours()*60+d.getMinutes(); }
+
+function updateClock() {
+  const now = ct();
+  document.getElementById('clock').textContent = fmtTime(now);
+  document.getElementById('hdr-date').textContent =
+    now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) + ' · CT';
+}
+
+// ═══════════════════════════════════════════════
+// DATA FETCH
+// ═══════════════════════════════════════════════
+let state = { bars:[], orH:null, orL:null, vwap:null, price:null, signal:null };
+let lastFetch = null;
+
+async function fetchData() {
+  const url = 'https://query1.finance.yahoo.com/v8/finance/chart/MES=F?interval=1m&range=1d&includePrePost=false';
+  const proxies = [
+    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    u => u,
+  ];
+  for (const p of proxies) {
+    try {
+      const r = await fetch(p(url), {signal: AbortSignal.timeout(9000)});
+      if (!r.ok) continue;
+      const d = await r.json();
+      const res = d?.chart?.result?.[0];
+      if (!res) continue;
+      const ts = res.timestamp, q = res.indicators.quote[0];
+      if (!ts || !q.close) continue;
+      const bars = [];
+      for (let i=0; i<ts.length; i++) {
+        const c=q.close[i],o=q.open[i],h=q.high[i],l=q.low[i],v=q.volume[i];
+        if (c==null||isNaN(c)) continue;
+        bars.push({t:new Date(ts[i]*1000),o:o||c,h:h||c,l:l||c,c,v:v||0});
+      }
+      if (!bars.length) continue;
+      state.bars = bars;
+      state.price = bars[bars.length-1].c;
+      lastFetch = new Date();
+      return true;
+    } catch(e) {}
+  }
+  return false;
+}
+
+function calcOR() {
+  let hi=-Infinity, lo=Infinity, found=false;
+  for (const b of state.bars) {
+    const bct = new Date(b.t.toLocaleString('en-US',{timeZone:'America/Chicago'}));
+    const m = toMins(bct);
+    if (m>=510 && m<=524) { hi=Math.max(hi,b.h); lo=Math.min(lo,b.l); found=true; }
+  }
+  state.orH = found ? hi : null;
+  state.orL = found ? lo : null;
+}
+
+function calcVWAP() {
+  let tpv=0, vol=0;
+  for (const b of state.bars) {
+    const tp=(b.h+b.l+b.c)/3;
+    tpv+=tp*(b.v||1); vol+=(b.v||1);
+  }
+  state.vwap = vol>0 ? tpv/vol : null;
+}
+
+function calcSignal() {
+  const {orH, orL, vwap, bars, price} = state;
+  if (!orH || !orL || !price) return null;
+
+  const width = orH - orL;
+  if (width > MAX_OR) return {type:'skip', width};
+
+  for (const b of bars) {
+    const bct = new Date(b.t.toLocaleString('en-US',{timeZone:'America/Chicago'}));
+    const m = toMins(bct);
+    if (m < 540 || m > 690) continue; // 9:00–11:30
+
+    if (b.c > orH && (!vwap || b.c > vwap)) {
+      return {
+        type:'long', entry:orH,
+        target:+(orH+PT).toFixed(2),
+        stop:+(orH-SL).toFixed(2),
+        width
+      };
+    }
+    if (b.c < orL && (!vwap || b.c < vwap)) {
+      return {
+        type:'short', entry:orL,
+        target:+(orL-PT).toFixed(2),
+        stop:+(orL+SL).toFixed(2),
+        width
+      };
+    }
+  }
+
+  const now = ct(), m = toMins(now);
+  if (m >= 690) return {type:'none', width}; // after 11:30, no signal
+  return {type:'wait', width};
+}
+
+// ═══════════════════════════════════════════════
+// UPDATE UI
+// ═══════════════════════════════════════════════
+function updateUI() {
+  calcOR(); calcVWAP();
+  const sig = calcSignal();
+  state.signal = sig;
+
+  const {orH, orL, vwap, price} = state;
+
+  // Chips
+  if (orH) {
+    setChip('c-orh', orH.toFixed(2), 'amber');
+    setChip('c-orl', orL.toFixed(2), 'amber');
+    const w = (orH-orL).toFixed(1);
+    setChip('c-orw', w+' pts', (orH-orL)<=MAX_OR ? 'green' : 'red');
+  }
+  if (vwap) setChip('c-vwap', vwap.toFixed(2), 'blue');
+  if (price) {
+    setChip('c-price', price.toFixed(2), 'green');
+    if (vwap) {
+      const above = price > vwap;
+      const diff = Math.abs(price-vwap).toFixed(2);
+      setChip('c-pvwap', (above?'▲ Above':'▼ Below')+' ('+diff+')', above?'green':'red');
+    }
+  }
+
+  // Signal card
+  if (!sig) {
+    setCard('wait','⏳','WAITING','wait','Market data loading...',null);
+  } else if (sig.type === 'skip') {
+    setCard('skip','🚫','SKIP TODAY','skip',
+      `OR range is ${sig.width.toFixed(1)} pts — too wide (max ${MAX_OR} pts). No trade today.`, null);
+  } else if (sig.type === 'wait') {
+    const m = toMins(ct());
+    if (m < 510) {
+      setCard('wait','⏳','PRE-MARKET','wait','Market opens at 8:30 AM CT. Check back then.', null);
+    } else if (m < 540) {
+      setCard('wait','👀','BUILDING RANGE','wait',
+        `Opening Range window 8:30–8:44 AM CT. OR: ${orH?orH.toFixed(2):'?'} / ${orL?orL.toFixed(2):'?'}`, null);
+    } else {
+      setCard('wait','👀','WATCHING','wait',
+        `Trade window open. No breakout yet. OR: ${orH?orH.toFixed(2):'?'} / ${orL?orL.toFixed(2):'?'}`, null);
+    }
+  } else if (sig.type === 'none') {
+    setCard('none','—','NO SIGNAL','none','Trade window closed at 11:30 AM. No signal fired today.', null);
+  } else if (sig.type === 'long') {
+    setCard('long','📈','GO LONG','long',
+      `VWAP confirmed · Buy 5 MES at ${sig.entry.toFixed(2)}`, sig);
+  } else if (sig.type === 'short') {
+    setCard('short','📉','GO SHORT','short',
+      `VWAP confirmed · Sell 5 MES at ${sig.entry.toFixed(2)}`, sig);
+  }
+
+  // Status bar
+  const dot = document.getElementById('sdot');
+  const msg = document.getElementById('smsg');
+  const stm = document.getElementById('stime');
+  if (lastFetch) {
+    dot.className = 'status-dot live';
+    msg.textContent = `${state.bars.length} bars loaded · MES=F`;
+    stm.textContent = lastFetch.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/Chicago'});
+  } else {
+    dot.className = 'status-dot warn';
+    msg.textContent = 'Data unavailable — check connection';
+  }
+}
+
+function setCard(cardCls, icon, status, statusCls, sub, sig) {
+  document.getElementById('sig-card').className = `signal-card ${cardCls}`;
+  document.getElementById('sig-top').className   = `sig-top ${cardCls}`;
+  document.getElementById('sig-icon').textContent = icon;
+  const st = document.getElementById('sig-status');
+  st.textContent = status; st.className = `sig-status ${statusCls}`;
+  document.getElementById('sig-sub').textContent = sub;
+
+  const lv = document.getElementById('sig-levels');
+  if (sig && (sig.type==='long'||sig.type==='short')) {
+    lv.style.display = 'grid';
+    document.getElementById('lv-entry').textContent  = sig.entry.toFixed(2);
+    document.getElementById('lv-target').textContent = sig.target.toFixed(2);
+    document.getElementById('lv-stop').textContent   = sig.stop.toFixed(2);
+    const ptD = (PT*5*CONTRACTS).toLocaleString();
+    const slD = (SL*5*CONTRACTS).toLocaleString();
+    document.getElementById('lv-target-sub').textContent = `+$${ptD}`;
+    document.getElementById('lv-stop-sub').textContent   = `-$${slD}`;
+  } else {
+    lv.style.display = 'none';
+  }
+}
+
+function setChip(id, val, cls) {
+  const el = document.getElementById(id);
+  el.textContent = val;
+  el.className = `chip-val ${cls}`;
+}
+
+// ═══════════════════════════════════════════════
+// FETCH + REFRESH
+// ═══════════════════════════════════════════════
+async function fetchNow() {
+  document.getElementById('smsg').textContent = 'Refreshing...';
+  const ok = await fetchData();
+  if (ok) updateUI();
+  else {
+    document.getElementById('sdot').className = 'status-dot warn';
+    document.getElementById('smsg').textContent = 'Could not fetch data — retrying...';
+  }
+  // Auto retry every 60 seconds during trade window
+  const m = toMins(ct());
+  if (m >= 510 && m <= 690) {
+    setTimeout(fetchNow, 60000);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// LOG FORM
+// ═══════════════════════════════════════════════
+function toggleLogForm() {
+  const card = document.getElementById('log-form-card');
+  const showing = card.style.display !== 'none';
+  card.style.display = showing ? 'none' : 'block';
+
+  if (!showing) {
+    // Pre-fill today's date and signal
+    const now = ct();
+    document.getElementById('f-date').value =
+      `${now.getFullYear()}-${fmt2(now.getMonth()+1)}-${fmt2(now.getDate())}`;
+    if (state.signal) {
+      const t = state.signal.type;
+      document.getElementById('f-signal').value =
+        ['long','short','skip','none'].includes(t) ? t : 'none';
+      if (state.signal.entry)
+        document.getElementById('f-entry').value = state.signal.entry;
+      if (state.orH && state.orL)
+        document.getElementById('f-range').value = (state.orH-state.orL).toFixed(2);
+    }
+  }
+}
+
+function saveEntry() {
+  const date    = document.getElementById('f-date').value;
+  const signal  = document.getElementById('f-signal').value;
+  const entry   = parseFloat(document.getElementById('f-entry').value) || 0;
+  const result  = document.getElementById('f-result').value;
+  const pnl     = parseFloat(document.getElementById('f-pnl').value) || 0;
+  const range   = parseFloat(document.getElementById('f-range').value) || 0;
+  const notes   = document.getElementById('f-notes').value.trim();
+
+  if (!date) { alert('Please select a date.'); return; }
+
+  const journal = getJournal();
+  // Remove existing entry for same date
+  const idx = journal.findIndex(e => e.date === date);
+  if (idx >= 0) journal.splice(idx, 1);
+
+  journal.unshift({ date, signal, entry, result, pnl, range, notes, ts: Date.now() });
+  journal.sort((a,b) => b.date.localeCompare(a.date));
+  saveJournal(journal);
+
+  // Clear form
+  document.getElementById('f-entry').value = '';
+  document.getElementById('f-result').value = '';
+  document.getElementById('f-pnl').value = '';
+  document.getElementById('f-notes').value = '';
+  document.getElementById('log-form-card').style.display = 'none';
+
+  renderJournal();
+}
+
+// ═══════════════════════════════════════════════
+// JOURNAL RENDER
+// ═══════════════════════════════════════════════
+function renderJournal() {
+  const journal = getJournal();
+  const list    = document.getElementById('j-list');
+  const count   = document.getElementById('j-count');
+
+  count.textContent = `${journal.length} day${journal.length!==1?'s':''}`;
+
+  // Stats
+  const trades = journal.filter(e => e.signal==='long'||e.signal==='short');
+  const wins   = trades.filter(e => e.result==='win');
+  const losses = trades.filter(e => e.result==='loss');
+  const totalPnl = journal.reduce((s,e)=>s+(e.pnl||0),0);
+  const wr = trades.length > 0 ? Math.round(wins.length/trades.length*100) : null;
+
+  document.getElementById('js-trades').textContent = trades.length;
+  document.getElementById('js-wins').textContent   = wins.length;
+  document.getElementById('js-wr').textContent     = wr !== null ? wr+'%' : '--';
+  const pnlEl = document.getElementById('js-pnl');
+  pnlEl.textContent = (totalPnl>=0?'+':'')+'$'+Math.abs(totalPnl).toLocaleString();
+  pnlEl.className   = `jstat-val ${totalPnl>0?'green':totalPnl<0?'red':''}`;
+
+  if (!journal.length) {
+    list.innerHTML = '<div class="journal-empty">No trades logged yet.<br>Check back after your first session.</div>';
+    return;
+  }
+
+  list.innerHTML = journal.map((e,i) => {
+    const sigBadge = {long:'long',short:'short',skip:'skip',none:'none'}[e.signal] || 'none';
+    const sigLabel = {long:'LONG',short:'SHORT',skip:'SKIP',none:'NO SIG'}[e.signal] || '--';
+    const resBadge = {win:'win',loss:'loss',be:'',na:''}[e.result] || '';
+    const resLabel = {win:'WIN',loss:'LOSS',be:'BE',na:'N/A'}[e.result] || '--';
+
+    let levels = '';
+    if (e.signal==='long'&&e.entry)
+      levels = `Entry ${e.entry} · T ${(e.entry+PT).toFixed(2)} · S ${(e.entry-SL).toFixed(2)}`;
+    else if (e.signal==='short'&&e.entry)
+      levels = `Entry ${e.entry} · T ${(e.entry-PT).toFixed(2)} · S ${(e.entry+SL).toFixed(2)}`;
+    else if (e.signal==='skip')
+      levels = `OR Range: ${e.range||'?'} pts — skipped`;
+    else
+      levels = `OR Range: ${e.range||'?'} pts — no breakout`;
+
+    const pnlStr = e.pnl ? (e.pnl>0?'+':'')+`$${e.pnl.toLocaleString()}` : '';
+    const pnlCls = e.pnl>0?'pos':e.pnl<0?'neg':'neu';
+
+    const d = new Date(e.date+'T12:00:00');
+    const dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+
+    return `
+    <div class="jrow">
+      <div class="jrow-date">${dateStr}</div>
+      <div>
+        <div class="jrow-badge ${sigBadge}">${sigLabel}</div>
+        ${e.result&&e.result!=='na'?`<div class="jrow-badge ${resBadge}" style="margin-top:3px">${resLabel}</div>`:''}
+      </div>
+      <div class="jrow-info">
+        <div class="jrow-levels">${levels}</div>
+        ${e.notes?`<div class="jrow-note">${e.notes}</div>`:''}
+      </div>
+      <div class="jrow-pnl ${pnlCls}">${pnlStr}</div>
+      <div class="jrow-del" onclick="deleteEntry(${i})">✕</div>
+    </div>`;
+  }).join('');
+}
+
+function deleteEntry(idx) {
+  if (!confirm('Delete this entry?')) return;
+  const journal = getJournal();
+  journal.splice(idx, 1);
+  saveJournal(journal);
+  renderJournal();
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+setInterval(updateClock, 1000);
+updateClock();
+renderJournal();
+fetchNow();
+</script>
+</body>
+</html>
