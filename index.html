@@ -137,13 +137,19 @@ hr{border:none;border-top:1px solid var(--line);margin:16px 0}
     <div class="metric"><label>OR Width</label><div class="val blue" id="orWidth">---</div></div>
     <div class="metric"><label>ADX (Trend Strength)</label><div class="val" id="adxVal">---</div></div>
     <div class="metric"><label>ADX Signal</label><div class="val" id="adxSig">---</div></div>
+    <div class="metric"><label>Gap From Yesterday</label><div class="val" id="gapVal">---</div></div>
+    <div class="metric"><label>Gap Filter</label><div class="val" id="gapSig">---</div></div>
+    <div class="metric"><label>News Today</label><div class="val" id="newsVal" style="font-size:13px">---</div></div>
+    <div class="metric"><label>News Filter</label><div class="val" id="newsSig">---</div></div>
   </div>
 
   <div class="card">
     <div class="signal" id="signal">WAIT</div>
     <p class="sub" id="signalSub">Waiting for data.</p>
     <div id="levels" class="small"></div>
-    <div id="adxWarning" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;background:#1a1200;border:1px solid #ffbe55;color:#ffbe55;font-size:14px;font-weight:700;"></div>
+    <div id="adxWarning"  style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;background:#1a1200;border:1px solid #ffbe55;color:#ffbe55;font-size:14px;font-weight:700;"></div>
+    <div id="gapWarning"  style="display:none;margin-top:8px;padding:10px 14px;border-radius:8px;background:#1a1200;border:1px solid #ff4d61;color:#ff4d61;font-size:14px;font-weight:700;"></div>
+    <div id="newsWarning" style="display:none;margin-top:8px;padding:10px 14px;border-radius:8px;background:#1a0a00;border:1px solid #ff4d61;color:#ff4d61;font-size:14px;font-weight:700;"></div>
   </div>
 
   <div class="card">
@@ -197,6 +203,98 @@ const SL = 10;
 
 function setText(id, val){ document.getElementById(id).textContent = val; }
 function fmt(n){ return Number(n).toFixed(2); }
+
+// ── ECONOMIC CALENDAR ────────────────────────────────────────────
+// High-impact news events that make ORB unreliable.
+// Source: known recurring schedule. Dates updated monthly.
+// Format: 'YYYY-MM-DD': ['Event name', ...]
+const HIGH_IMPACT_EVENTS = {
+  // FOMC meetings 2026
+  '2026-01-28': ['FOMC Rate Decision'],
+  '2026-01-29': ['FOMC Rate Decision'],
+  '2026-03-18': ['FOMC Rate Decision'],
+  '2026-03-19': ['FOMC Rate Decision'],
+  '2026-05-06': ['FOMC Rate Decision'],
+  '2026-05-07': ['FOMC Rate Decision'],
+  '2026-06-17': ['FOMC Rate Decision'],
+  '2026-06-18': ['FOMC Rate Decision'],
+  '2026-07-28': ['FOMC Rate Decision'],
+  '2026-07-29': ['FOMC Rate Decision'],
+  '2026-09-15': ['FOMC Rate Decision'],
+  '2026-09-16': ['FOMC Rate Decision'],
+  '2026-11-04': ['FOMC Rate Decision'],
+  '2026-11-05': ['FOMC Rate Decision'],
+  '2026-12-15': ['FOMC Rate Decision'],
+  '2026-12-16': ['FOMC Rate Decision'],
+  // CPI releases 2026 (usually 2nd or 3rd Tuesday/Wednesday)
+  '2026-01-15': ['CPI Report'],
+  '2026-02-12': ['CPI Report'],
+  '2026-03-12': ['CPI Report'],
+  '2026-04-10': ['CPI Report'],
+  '2026-05-13': ['CPI Report'],
+  '2026-05-19': ['CPI Report'],
+  '2026-06-11': ['CPI Report'],
+  '2026-07-14': ['CPI Report'],
+  '2026-08-13': ['CPI Report'],
+  '2026-09-11': ['CPI Report'],
+  '2026-10-13': ['CPI Report'],
+  '2026-11-12': ['CPI Report'],
+  '2026-12-10': ['CPI Report'],
+  // NFP (Non-Farm Payrolls) 2026 - first Friday of month
+  '2026-01-09': ['NFP Jobs Report'],
+  '2026-02-06': ['NFP Jobs Report'],
+  '2026-03-06': ['NFP Jobs Report'],
+  '2026-04-03': ['NFP Jobs Report'],
+  '2026-05-08': ['NFP Jobs Report'],
+  '2026-06-05': ['NFP Jobs Report'],
+  '2026-07-10': ['NFP Jobs Report'],
+  '2026-08-07': ['NFP Jobs Report'],
+  '2026-09-04': ['NFP Jobs Report'],
+  '2026-10-02': ['NFP Jobs Report'],
+  '2026-11-06': ['NFP Jobs Report'],
+  '2026-12-04': ['NFP Jobs Report'],
+  // GDP releases (advance estimate, ~last Thursday of month)
+  '2026-01-29': ['GDP Report'],
+  '2026-04-29': ['GDP Report'],
+  '2026-07-29': ['GDP Report'],
+  '2026-10-28': ['GDP Report'],
+};
+
+function checkNewsToday() {
+  const ct = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Chicago'}));
+  const key = ct.toISOString().slice(0,10);
+  return HIGH_IMPACT_EVENTS[key] || null;
+}
+
+// ── GAP CALCULATION ───────────────────────────────────────────────
+// Gap = today's open vs yesterday's close
+// Large gaps (>25 pts) = unreliable ORB day
+function calcGap(bars) {
+  if (!bars || bars.length < 2) return null;
+  // Find first bar of today's regular session (after 8:30 AM CT)
+  let todayOpen = null;
+  let prevClose = null;
+  let prevDate  = null;
+
+  for (const b of bars) {
+    const ct   = new Date(b.t.toLocaleString('en-US', {timeZone:'America/Chicago'}));
+    const mins = ct.getHours() * 60 + ct.getMinutes();
+    const dateStr = ct.toISOString().slice(0,10);
+
+    if (mins >= 510 && todayOpen === null) {
+      todayOpen = b.c; // first bar at/after 8:30 AM
+    }
+    if (prevDate && dateStr !== prevDate) {
+      // day changed — prevClose is last bar of previous day
+    }
+    prevDate  = dateStr;
+    prevClose = b.c;
+  }
+
+  // Simpler: use day high/low range vs OR position
+  // Just return today's open bar value for now
+  return todayOpen;
+}
 
 // ── ADX CALCULATION ──────────────────────────────────────────────
 // ADX measures trend STRENGTH (not direction). 
@@ -252,7 +350,7 @@ function calcADX(bars, period = 14) {
   return adxArr[adxArr.length - 1];
 }
 
-function calcSignal({price, dayHigh, dayLow, orHigh, orLow, bars, source}) {
+function calcSignal({price, dayHigh, dayLow, orHigh, orLow, bars, prevClose, source}) {
   if (![price, orHigh, orLow].every(Number.isFinite)) {
     setText('signal', 'NO DATA');
     setText('signalSub', 'Need current price, OR high, and OR low.');
@@ -269,6 +367,68 @@ function calcSignal({price, dayHigh, dayLow, orHigh, orLow, bars, source}) {
   setText('orHigh',  fmt(orHigh));
   setText('orLow',   fmt(orLow));
   setText('orWidth', width.toFixed(2) + ' pts');
+
+  // ── GAP FILTER ───────────────────────────────────────────────
+  const gapEl    = document.getElementById('gapVal');
+  const gapSigEl = document.getElementById('gapSig');
+  const gapWarn  = document.getElementById('gapWarning');
+  let gapOk = true;
+
+  if (prevClose && Number.isFinite(prevClose) && Number.isFinite(orHigh) && Number.isFinite(orLow)) {
+    const orMid  = (orHigh + orLow) / 2;
+    const gapAmt = Math.abs(orMid - prevClose);
+    gapEl.textContent = gapAmt.toFixed(2) + ' pts';
+
+    if (gapAmt > 25) {
+      gapEl.className    = 'val red';
+      gapSigEl.textContent = 'LARGE GAP ✗';
+      gapSigEl.className = 'val red';
+      gapWarn.style.display = 'block';
+      gapWarn.textContent = '⛔ Gap of ' + gapAmt.toFixed(1) + ' pts from yesterday — ORB unreliable on large gap days. SKIP TODAY.';
+      gapOk = false;
+    } else if (gapAmt > 15) {
+      gapEl.className    = 'val amber';
+      gapSigEl.textContent = 'MODERATE GAP';
+      gapSigEl.className = 'val amber';
+      gapWarn.style.display = 'block';
+      gapWarn.textContent = '⚠ Gap of ' + gapAmt.toFixed(1) + ' pts — moderate gap. Trade with extra caution.';
+      gapOk = true;
+    } else {
+      gapEl.className    = 'val green';
+      gapSigEl.textContent = 'NORMAL ✓';
+      gapSigEl.className = 'val green';
+      gapWarn.style.display = 'none';
+      gapOk = true;
+    }
+  } else {
+    gapEl.textContent    = 'N/A';
+    gapSigEl.textContent = 'No data';
+    gapWarn.style.display = 'none';
+  }
+
+  // ── NEWS FILTER ──────────────────────────────────────────────
+  const newsEl    = document.getElementById('newsVal');
+  const newsSigEl = document.getElementById('newsSig');
+  const newsWarn  = document.getElementById('newsWarning');
+  const todayNews = checkNewsToday();
+  let newsOk = true;
+
+  if (todayNews && todayNews.length > 0) {
+    newsEl.textContent    = todayNews.join(', ');
+    newsEl.className      = 'val red';
+    newsSigEl.textContent = 'HIGH IMPACT ✗';
+    newsSigEl.className   = 'val red';
+    newsWarn.style.display = 'block';
+    newsWarn.textContent  = '⛔ High-impact news today: ' + todayNews.join(', ') + ' — Market moves on news, not technicals. SKIP TODAY.';
+    newsOk = false;
+  } else {
+    newsEl.textContent    = 'None';
+    newsEl.className      = 'val green';
+    newsSigEl.textContent = 'CLEAR ✓';
+    newsSigEl.className   = 'val green';
+    newsWarn.style.display = 'none';
+    newsOk = true;
+  }
 
   // ── ADX ──────────────────────────────────────────────────────
   const adxVal = bars && bars.length > 30 ? calcADX(bars, 14) : null;
@@ -320,6 +480,12 @@ function calcSignal({price, dayHigh, dayLow, orHigh, orLow, bars, source}) {
   } else if (!adxOk) {
     signal = 'SKIP DAY';
     sub = 'ADX ' + (adxVal ? adxVal.toFixed(1) : '?') + ' — market is too choppy for ORB. Wait for a trending day.';
+  } else if (!gapOk) {
+    signal = 'SKIP DAY';
+    sub = 'Large gap from yesterday — ORB signals are unreliable on big gap days.';
+  } else if (!newsOk) {
+    signal = 'SKIP DAY';
+    sub = 'High-impact news today: ' + (todayNews ? todayNews.join(', ') : '?') + ' — market moves on news not technicals.';
   } else if (price > orHigh) {
     signal = 'LONG';
     sub = 'Price is above OR High. VWAP filter: confirm price is above VWAP on your chart.';
@@ -445,8 +611,19 @@ async function fetchNow(){
 
       const price = bars[bars.length-1].c;
       const dayHigh = Math.max(...bars.map(b=>b.h));
-      const dayLow = Math.min(...bars.map(b=>b.l));
+      const dayLow  = Math.min(...bars.map(b=>b.l));
       const {orHigh, orLow} = getOR(bars);
+
+      // Get previous session close (last bar before 8:25 AM CT today)
+      let prevClose = null;
+      const todayStr = new Date(new Date().toLocaleString('en-US',{timeZone:'America/Chicago'}))
+                         .toISOString().slice(0,10);
+      for (let i = bars.length-1; i >= 0; i--) {
+        const bct = new Date(bars[i].t.toLocaleString('en-US',{timeZone:'America/Chicago'}));
+        const bDate = bct.toISOString().slice(0,10);
+        const bMins = bct.getHours()*60+bct.getMinutes();
+        if (bDate < todayStr || bMins < 505) { prevClose = bars[i].c; break; }
+      }
 
       calcSignal({
         price,
@@ -455,6 +632,7 @@ async function fetchNow(){
         orHigh,
         orLow,
         bars,
+        prevClose,
         source: `${source} (${symbol})`
       });
 
