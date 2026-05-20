@@ -135,12 +135,15 @@ hr{border:none;border-top:1px solid var(--line);margin:16px 0}
     <div class="metric"><label>OR High</label><div class="val amber" id="orHigh">---</div></div>
     <div class="metric"><label>OR Low</label><div class="val amber" id="orLow">---</div></div>
     <div class="metric"><label>OR Width</label><div class="val blue" id="orWidth">---</div></div>
+    <div class="metric"><label>ADX (Trend Strength)</label><div class="val" id="adxVal">---</div></div>
+    <div class="metric"><label>ADX Signal</label><div class="val" id="adxSig">---</div></div>
   </div>
 
   <div class="card">
     <div class="signal" id="signal">WAIT</div>
     <p class="sub" id="signalSub">Waiting for data.</p>
     <div id="levels" class="small"></div>
+    <div id="adxWarning" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;background:#1a1200;border:1px solid #ffbe55;color:#ffbe55;font-size:14px;font-weight:700;"></div>
   </div>
 
   <div class="card">
@@ -195,7 +198,61 @@ const SL = 10;
 function setText(id, val){ document.getElementById(id).textContent = val; }
 function fmt(n){ return Number(n).toFixed(2); }
 
-function calcSignal({price, dayHigh, dayLow, orHigh, orLow, source}) {
+// ── ADX CALCULATION ──────────────────────────────────────────────
+// ADX measures trend STRENGTH (not direction). 
+// <20 = choppy/no trend (SKIP), 20-25 = borderline, >25 = trending (TRADE)
+function calcADX(bars, period = 14) {
+  if (bars.length < period * 2) return null;
+
+  const trueRanges = [];
+  const plusDMs = [];
+  const minusDMs = [];
+
+  for (let i = 1; i < bars.length; i++) {
+    const h = bars[i].h, l = bars[i].l, pc = bars[i-1].c;
+    const ph = bars[i-1].h, pl = bars[i-1].l;
+
+    // True Range
+    const tr = Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
+    trueRanges.push(tr);
+
+    // Directional Movement
+    const upMove   = h - ph;
+    const downMove = pl - l;
+    plusDMs.push(upMove > downMove && upMove > 0 ? upMove : 0);
+    minusDMs.push(downMove > upMove && downMove > 0 ? downMove : 0);
+  }
+
+  // Wilder smoothing
+  function wilderSmooth(arr, p) {
+    let sum = arr.slice(0, p).reduce((a, b) => a + b, 0);
+    const smoothed = [sum];
+    for (let i = p; i < arr.length; i++) {
+      sum = sum - sum / p + arr[i];
+      smoothed.push(sum);
+    }
+    return smoothed;
+  }
+
+  const smoothTR    = wilderSmooth(trueRanges, period);
+  const smoothPlus  = wilderSmooth(plusDMs,    period);
+  const smoothMinus = wilderSmooth(minusDMs,   period);
+
+  const dx = [];
+  for (let i = 0; i < smoothTR.length; i++) {
+    if (smoothTR[i] === 0) { dx.push(0); continue; }
+    const diPlus  = (smoothPlus[i]  / smoothTR[i]) * 100;
+    const diMinus = (smoothMinus[i] / smoothTR[i]) * 100;
+    const sum = diPlus + diMinus;
+    dx.push(sum === 0 ? 0 : Math.abs(diPlus - diMinus) / sum * 100);
+  }
+
+  // ADX = Wilder smoothed DX
+  const adxArr = wilderSmooth(dx, period);
+  return adxArr[adxArr.length - 1];
+}
+
+function calcSignal({price, dayHigh, dayLow, orHigh, orLow, bars, source}) {
   if (![price, orHigh, orLow].every(Number.isFinite)) {
     setText('signal', 'NO DATA');
     setText('signalSub', 'Need current price, OR high, and OR low.');
@@ -208,10 +265,50 @@ function calcSignal({price, dayHigh, dayLow, orHigh, orLow, source}) {
 
   setText('price', fmt(price));
   setText('dayHigh', Number.isFinite(dayHigh) ? fmt(dayHigh) : '---');
-  setText('dayLow', Number.isFinite(dayLow) ? fmt(dayLow) : '---');
-  setText('orHigh', fmt(orHigh));
-  setText('orLow', fmt(orLow));
+  setText('dayLow',  Number.isFinite(dayLow)  ? fmt(dayLow)  : '---');
+  setText('orHigh',  fmt(orHigh));
+  setText('orLow',   fmt(orLow));
   setText('orWidth', width.toFixed(2) + ' pts');
+
+  // ── ADX ──────────────────────────────────────────────────────
+  const adxVal = bars && bars.length > 30 ? calcADX(bars, 14) : null;
+  const adxEl    = document.getElementById('adxVal');
+  const adxSigEl = document.getElementById('adxSig');
+  const adxWarn  = document.getElementById('adxWarning');
+
+  let adxOk = true;  // default: allow trade if no ADX data
+  if (adxVal !== null) {
+    const adxRound = adxVal.toFixed(1);
+    adxEl.textContent = adxRound;
+
+    if (adxVal >= 25) {
+      adxEl.className = 'val green';
+      adxSigEl.textContent = 'TRENDING ✓';
+      adxSigEl.className = 'val green';
+      adxWarn.style.display = 'none';
+      adxOk = true;
+    } else if (adxVal >= 18) {
+      adxEl.className = 'val amber';
+      adxSigEl.textContent = 'BORDERLINE';
+      adxSigEl.className = 'val amber';
+      adxWarn.style.display = 'block';
+      adxWarn.textContent = '⚠ ADX ' + adxRound + ' — Market is borderline choppy. Trade with caution or wait for a cleaner day.';
+      adxOk = true;  // allow but warn
+    } else {
+      adxEl.className = 'val red';
+      adxSigEl.textContent = 'CHOPPY ✗';
+      adxSigEl.className = 'val red';
+      adxWarn.style.display = 'block';
+      adxWarn.textContent = '⛔ ADX ' + adxRound + ' — Market is CHOPPY. ORB does not work in choppy conditions. SKIP TODAY.';
+      adxOk = false;  // block signal
+    }
+  } else {
+    adxEl.textContent = 'N/A';
+    adxEl.className = 'val';
+    adxSigEl.textContent = 'No data';
+    adxSigEl.className = 'val muted';
+    adxWarn.style.display = 'none';
+  }
 
   let signal = 'WAIT';
   let sub = 'No breakout yet.';
@@ -219,22 +316,31 @@ function calcSignal({price, dayHigh, dayLow, orHigh, orLow, source}) {
 
   if (width > maxOr) {
     signal = 'SKIP DAY';
-    sub = `OR width is ${width.toFixed(2)} pts, above your ${maxOr} pt max.`;
+    sub = 'OR width is ' + width.toFixed(2) + ' pts — above ' + maxOr + ' pt max. Range too wide.';
+  } else if (!adxOk) {
+    signal = 'SKIP DAY';
+    sub = 'ADX ' + (adxVal ? adxVal.toFixed(1) : '?') + ' — market is too choppy for ORB. Wait for a trending day.';
   } else if (price > orHigh) {
     signal = 'LONG';
-    sub = `Price is above OR High. Confirm your rules before entering.`;
-    levels = `Entry: ${fmt(orHigh)} | Target: ${fmt(orHigh + PT)} | Stop: ${fmt(orHigh - SL)} | 1 MES bracket: Risk $50 / Profit $75`;
+    sub = 'Price is above OR High. VWAP filter: confirm price is above VWAP on your chart.';
+    levels = 'Entry: ' + fmt(orHigh) + ' | Target: ' + fmt(orHigh + PT) + ' | Stop: ' + fmt(orHigh - SL) + ' | Risk $' + (SL*5) + ' / Profit $' + (PT*5) + ' per contract';
   } else if (price < orLow) {
     signal = 'SHORT';
-    sub = `Price is below OR Low. Confirm your rules before entering.`;
-    levels = `Entry: ${fmt(orLow)} | Target: ${fmt(orLow - PT)} | Stop: ${fmt(orLow + SL)} | 1 MES bracket: Risk $50 / Profit $75`;
+    sub = 'Price is below OR Low. VWAP filter: confirm price is below VWAP on your chart.';
+    levels = 'Entry: ' + fmt(orLow) + ' | Target: ' + fmt(orLow - PT) + ' | Stop: ' + fmt(orLow + SL) + ' | Risk $' + (SL*5) + ' / Profit $' + (PT*5) + ' per contract';
   } else {
     signal = 'WAIT';
-    sub = `Price is still inside the OR. No breakout yet.`;
+    sub = 'Price is still inside the OR. No breakout yet.';
   }
 
-  setText('signal', signal);
-  setText('signalSub', `${sub}  Source: ${source}.`);
+  // Color the signal
+  const sigEl = document.getElementById('signal');
+  sigEl.textContent = signal;
+  sigEl.style.color = signal === 'LONG' ? 'var(--green)' :
+                      signal === 'SHORT' ? 'var(--red)' :
+                      signal === 'SKIP DAY' ? 'var(--amber)' : 'var(--text)';
+
+  setText('signalSub', sub + '  Source: ' + source + '.');
   document.getElementById('levels').innerHTML = levels;
 }
 
@@ -245,6 +351,7 @@ function useManual(){
     dayLow: Number(document.getElementById('mDayLow').value),
     orHigh: Number(document.getElementById('mOrHigh').value),
     orLow: Number(document.getElementById('mOrLow').value),
+    bars: [],
     source: 'Manual Topstep input'
   };
   calcSignal(vals);
@@ -347,6 +454,7 @@ async function fetchNow(){
         dayLow,
         orHigh,
         orLow,
+        bars,
         source: `${source} (${symbol})`
       });
 
