@@ -109,6 +109,60 @@ input,select{
   margin-top:10px;
 }
 hr{border:none;border-top:1px solid var(--line);margin:16px 0}
+
+/* ── COUNTDOWN BANNER ── */
+.countdown-banner{
+  border-radius:12px;
+  padding:16px 20px;
+  margin-bottom:16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:10px;
+  border:1px solid var(--line);
+}
+.countdown-banner.open{
+  background:linear-gradient(135deg,#0a1f12,#071610);
+  border-color:var(--green);
+}
+.countdown-banner.closing{
+  background:linear-gradient(135deg,#1f1500,#120e00);
+  border-color:var(--amber);
+}
+.countdown-banner.closed{
+  background:#0d1117;
+  border-color:var(--line);
+}
+.countdown-banner.pre{
+  background:#0d1117;
+  border-color:var(--line);
+}
+.cd-left{}
+.cd-phase{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  margin-bottom:4px;
+}
+.countdown-banner.open    .cd-phase{color:var(--green);}
+.countdown-banner.closing .cd-phase{color:var(--amber);}
+.countdown-banner.closed  .cd-phase{color:#555;}
+.countdown-banner.pre     .cd-phase{color:#555;}
+.cd-desc{font-size:13px;color:var(--muted);}
+.cd-timer{
+  font-family:monospace;
+  font-size:32px;
+  font-weight:900;
+  letter-spacing:3px;
+  min-width:100px;
+  text-align:right;
+}
+.countdown-banner.open    .cd-timer{color:var(--green);}
+.countdown-banner.closing .cd-timer{color:var(--amber);}
+.countdown-banner.closed  .cd-timer{color:#555;}
+.countdown-banner.pre     .cd-timer{color:#555;}
 </style>
 </head>
 <body>
@@ -126,6 +180,15 @@ hr{border:none;border-top:1px solid var(--line);margin:16px 0}
     </div>
     <p class="small" id="status">Ready.</p>
     <div id="debug" class="err"></div>
+  </div>
+
+  <!-- Countdown banner -->
+  <div class="countdown-banner pre" id="cdBanner">
+    <div class="cd-left">
+      <div class="cd-phase" id="cdPhase">PRE-MARKET</div>
+      <div class="cd-desc" id="cdDesc">Trade window opens at 9:00 AM CT</div>
+    </div>
+    <div class="cd-timer" id="cdTimer">--:--</div>
   </div>
 
   <div class="grid">
@@ -600,6 +663,91 @@ async function fetchNow(){
   setText('signalSub','Use Manual Topstep Backup Mode below. This is normal on GitHub/static HTML because futures feeds often block browser requests.');
   document.getElementById('status').textContent = 'Public feeds blocked. Manual mode is ready.';
 }
+
+// ── COUNTDOWN + PHASE CLOCK ──────────────────────────────────────
+function getCTNow() {
+  return new Date(new Date().toLocaleString('en-US', {timeZone: 'America/Chicago'}));
+}
+
+function pad2(n) { return String(n).padStart(2,'0'); }
+
+function fmtCountdown(totalSecs) {
+  if (totalSecs <= 0) return '00:00';
+  const m = Math.floor(totalSecs / 60);
+  const s = totalSecs % 60;
+  if (m >= 60) {
+    return pad2(Math.floor(m/60)) + ':' + pad2(m%60) + ':' + pad2(s);
+  }
+  return pad2(m) + ':' + pad2(s);
+}
+
+function updateCountdown() {
+  const now   = getCTNow();
+  const h     = now.getHours();
+  const m     = now.getMinutes();
+  const s     = now.getSeconds();
+  const total = h * 3600 + m * 60 + s;
+
+  const banner  = document.getElementById('cdBanner');
+  const phase   = document.getElementById('cdPhase');
+  const desc    = document.getElementById('cdDesc');
+  const timer   = document.getElementById('cdTimer');
+
+  // Key times in seconds from midnight
+  const T_OPEN    = 8*3600 + 30*60;   // 8:30 AM
+  const T_TRADE   = 9*3600;            // 9:00 AM — window opens
+  const T_CUTOFF  = 10*3600;           // 10:00 AM — our cutoff (best signals)
+  const T_CLOSE   = 14*3600 + 45*60;  // 2:45 PM — force close
+
+  if (total < T_OPEN) {
+    // Pre-market
+    banner.className = 'countdown-banner pre';
+    phase.textContent  = 'PRE-MARKET';
+    desc.textContent   = 'Market opens 8:30 AM CT — OR window starts then';
+    timer.textContent  = fmtCountdown(T_OPEN - total);
+
+  } else if (total < T_TRADE) {
+    // OR window forming
+    banner.className = 'countdown-banner closing';
+    phase.textContent  = 'OPENING RANGE FORMING';
+    desc.textContent   = 'Note OR High & Low — trade window opens at 9:00 AM';
+    timer.textContent  = fmtCountdown(T_TRADE - total);
+
+  } else if (total < T_CUTOFF) {
+    // Trade window OPEN — sweet spot
+    banner.className = 'countdown-banner open';
+    phase.textContent  = '🟢  TRADE WINDOW OPEN';
+    desc.textContent   = 'Best signals fire before 10:00 AM — check signal now';
+    timer.textContent  = fmtCountdown(T_CUTOFF - total);
+
+  } else if (total < T_CLOSE) {
+    // After 10 AM — window technically open but low probability
+    banner.className = 'countdown-banner closed';
+    phase.textContent  = 'LOW PROBABILITY ZONE';
+    desc.textContent   = 'After 10:00 AM signals are historically 0% win rate. Close the app.';
+    timer.textContent  = '—';
+
+    // Override any active WAIT signal to NO SIGNAL
+    const sigEl = document.getElementById('signal');
+    if (sigEl && sigEl.textContent === 'WAIT') {
+      sigEl.textContent  = 'NO SIGNAL';
+      sigEl.style.color  = '#555';
+      document.getElementById('signalSub').textContent =
+        'Trade window past 10:00 AM — historically 0% win rate after this time. Done for today.';
+    }
+
+  } else {
+    // Force close time
+    banner.className = 'countdown-banner closed';
+    phase.textContent  = '🔴  CLOSE ALL POSITIONS';
+    desc.textContent   = '2:45 PM CT — flatten everything in TopstepX now';
+    timer.textContent  = 'NOW';
+  }
+}
+
+// Run countdown every second
+updateCountdown();
+setInterval(updateCountdown, 1000);
 
 fetchNow();
 setInterval(fetchNow, 60000);
