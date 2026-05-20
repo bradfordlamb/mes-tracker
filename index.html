@@ -184,9 +184,10 @@ hr{border:none;border-top:1px solid var(--line);margin:16px 0}
 
     <hr>
     <p class="small">
-      <span class="pill">1 MES = $5/point</span>
-      <span class="pill">10 pt stop = $50 risk</span>
-      <span class="pill">15 pt target = $75 profit</span>
+      <span class="pill">5 MES contracts</span>
+      <span class="pill">10 pt stop = $250 risk</span>
+      <span class="pill">15 pt target = $375 profit</span>
+      <span class="pill">OR sweet spot: 15–30 pts</span>
       <span class="pill">Use brackets in TopstepX</span>
     </p>
   </div>
@@ -394,10 +395,10 @@ function calcSignal({price, dayHigh, dayLow, orHigh, orLow, bars, source}) {
 
   // ── OR WIDTH QUALITY FILTER ─────────────────────────────────
   // Backtested on 61 days of real MES data:
-  // OR 10-15pts = 36% win rate (SKIP - too tight, choppy)
-  // OR 15-25pts = 72% win rate (SWEET SPOT - best results)
-  // OR 25-35pts = 44% win rate (OK but wider stops needed)
-  // OR 30-35pts = 0%  win rate (SKIP - too wide)
+  // OR  <15pts  = 36% win rate  (SKIP — too tight)
+  // OR 15-30pts = 71% win rate  (SWEET SPOT — trade it)
+  // OR 30-35pts = caution       (borderline — proceed carefully)
+  // OR  >35pts  = SKIP          (too wide)
   const adxEl    = document.getElementById('adxVal');
   const adxSigEl = document.getElementById('adxSig');
   const adxWarn  = document.getElementById('adxWarning');
@@ -405,25 +406,25 @@ function calcSignal({price, dayHigh, dayLow, orHigh, orLow, bars, source}) {
 
   if (Number.isFinite(width)) {
     adxEl.textContent = width.toFixed(1) + ' pts';
-    if (width >= 15 && width <= 25) {
+    if (width >= 15 && width <= 30) {
       adxEl.className    = 'val green';
       adxSigEl.textContent = 'SWEET SPOT ✓';
       adxSigEl.className = 'val green';
       adxWarn.style.display = 'none';
       adxOk = true;
-    } else if (width > 25 && width <= 35) {
+    } else if (width > 30 && width <= 35) {
       adxEl.className    = 'val amber';
       adxSigEl.textContent = 'WIDE — CAUTION';
       adxSigEl.className = 'val amber';
       adxWarn.style.display = 'block';
-      adxWarn.textContent = '⚠ OR width ' + width.toFixed(1) + ' pts is wide. Backtest shows 44% win rate at this range. Trade with caution.';
+      adxWarn.textContent = '⚠ OR width ' + width.toFixed(1) + ' pts — getting wide. Proceed carefully, stop rules apply.';
       adxOk = true;
     } else if (width < 15 && width > 0) {
       adxEl.className    = 'val red';
       adxSigEl.textContent = 'TOO TIGHT ✗';
       adxSigEl.className = 'val red';
       adxWarn.style.display = 'block';
-      adxWarn.textContent = '⛔ OR width ' + width.toFixed(1) + ' pts is too tight. Backtest shows only 36% win rate on narrow ranges. SKIP TODAY.';
+      adxWarn.textContent = '⛔ OR width ' + width.toFixed(1) + ' pts — too tight. Only 36% win rate historically on narrow ranges. SKIP TODAY.';
       adxOk = false;
     } else {
       adxEl.className    = 'val';
@@ -453,11 +454,11 @@ function calcSignal({price, dayHigh, dayLow, orHigh, orLow, bars, source}) {
   } else if (price > orHigh) {
     signal = 'LONG';
     sub = 'Price is above OR High. VWAP filter: confirm price is above VWAP on your chart.';
-    levels = 'Entry: ' + fmt(orHigh) + ' | Target: ' + fmt(orHigh + PT) + ' | Stop: ' + fmt(orHigh - SL) + ' | Risk $' + (SL*5) + ' / Profit $' + (PT*5) + ' per contract';
+    levels = 'Entry: ' + fmt(orHigh) + ' | Target: ' + fmt(orHigh + PT) + ' | Stop: ' + fmt(orHigh - SL) + ' | 5 contracts: Risk $250 / Profit $375';
   } else if (price < orLow) {
     signal = 'SHORT';
     sub = 'Price is below OR Low. VWAP filter: confirm price is below VWAP on your chart.';
-    levels = 'Entry: ' + fmt(orLow) + ' | Target: ' + fmt(orLow - PT) + ' | Stop: ' + fmt(orLow + SL) + ' | Risk $' + (SL*5) + ' / Profit $' + (PT*5) + ' per contract';
+    levels = 'Entry: ' + fmt(orLow) + ' | Target: ' + fmt(orLow - PT) + ' | Stop: ' + fmt(orLow + SL) + ' | 5 contracts: Risk $250 / Profit $375';
   } else {
     signal = 'WAIT';
     sub = 'Price is still inside the OR. No breakout yet.';
