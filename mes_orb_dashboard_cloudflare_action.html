@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MES ORB Signal Dashboard</title>
+<style>
+:root{
+  --bg:#070b10;
+  --card:#121922;
+  --card2:#1b2430;
+  --line:#2c3948;
+  --text:#f4f7fb;
+  --muted:#9fb2c8;
+  --green:#00d084;
+  --red:#ff4d61;
+  --blue:#5da9ff;
+  --amber:#ffbe55;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Arial,Helvetica,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+.wrap{max-width:1100px;margin:0 auto;padding:18px}
+.card{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:18px;
+  margin-bottom:16px;
+}
+h1{margin:0 0 8px;font-size:30px}
+h2{margin:0 0 10px;font-size:22px}
+.sub{color:var(--muted);margin:0 0 14px;line-height:1.5}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(155px,1fr));
+  gap:12px;
+}
+.metric{
+  background:var(--card2);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:14px;
+}
+.metric label{
+  display:block;
+  color:#a8cdf7;
+  font-size:13px;
+  margin-bottom:10px;
+}
+.metric .val{
+  font-size:25px;
+  font-weight:800;
+}
+.green{color:var(--green)}
+.red{color:var(--red)}
+.blue{color:var(--blue)}
+.amber{color:var(--amber)}
+.signal{
+  font-size:46px;
+  font-weight:900;
+  letter-spacing:-1px;
+}
+button{
+  border:none;
+  border-radius:8px;
+  padding:12px 16px;
+  font-weight:800;
+  cursor:pointer;
+}
+.primary{background:var(--green);color:#00140a}
+.secondary{background:transparent;color:var(--blue);border:1px solid var(--blue)}
+.warn{background:transparent;color:var(--amber);border:1px solid var(--amber)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+input,select{
+  width:100%;
+  background:#0b1017;
+  border:1px solid var(--line);
+  color:var(--text);
+  border-radius:8px;
+  padding:11px;
+  font-size:16px;
+}
+.formgrid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:12px;
+}
+.small{font-size:13px;color:var(--muted);line-height:1.5}
+.pill{
+  display:inline-block;
+  padding:4px 9px;
+  border-radius:999px;
+  background:#0b1017;
+  border:1px solid var(--line);
+  color:var(--muted);
+  font-size:12px;
+  margin-right:6px;
+}
+.err{
+  color:var(--amber);
+  font-family:monospace;
+  white-space:pre-wrap;
+  font-size:12px;
+  margin-top:10px;
+}
+hr{border:none;border-top:1px solid var(--line);margin:16px 0}
+
+/* ── COUNTDOWN BANNER ── */
+.countdown-banner{
+  border-radius:12px;
+  padding:16px 20px;
+  margin-bottom:16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:10px;
+  border:1px solid var(--line);
+}
+.countdown-banner.open{
+  background:linear-gradient(135deg,#0a1f12,#071610);
+  border-color:var(--green);
+}
+.countdown-banner.closing{
+  background:linear-gradient(135deg,#1f1500,#120e00);
+  border-color:var(--amber);
+}
+.countdown-banner.closed{
+  background:#0d1117;
+  border-color:var(--line);
+}
+.countdown-banner.pre{
+  background:#0d1117;
+  border-color:var(--line);
+}
+.cd-left{}
+.cd-phase{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  margin-bottom:4px;
+}
+.countdown-banner.open    .cd-phase{color:var(--green);}
+.countdown-banner.closing .cd-phase{color:var(--amber);}
+.countdown-banner.closed  .cd-phase{color:#555;}
+.countdown-banner.pre     .cd-phase{color:#555;}
+.cd-desc{font-size:13px;color:var(--muted);}
+.cd-timer{
+  font-family:monospace;
+  font-size:32px;
+  font-weight:900;
+  letter-spacing:3px;
+  min-width:100px;
+  text-align:right;
+}
+.countdown-banner.open    .cd-timer{color:var(--green);}
+.countdown-banner.closing .cd-timer{color:var(--amber);}
+.countdown-banner.closed  .cd-timer{color:#555;}
+.countdown-banner.pre     .cd-timer{color:#555;}
+
+/* MASTER ACTION PANEL — clear instruction layer */
+.action-panel{
+  background:linear-gradient(135deg,rgba(93,169,255,.08),rgba(0,0,0,.12));
+  border:2px solid var(--line);
+  border-radius:14px;
+  padding:18px;
+  margin-bottom:16px;
+  display:grid;
+  grid-template-columns:1.1fr 2fr;
+  gap:16px;
+  align-items:center;
+}
+.action-panel.wait{border-color:var(--amber);background:rgba(255,190,85,.06)}
+.action-panel.go{border-color:var(--green);background:rgba(0,208,132,.07)}
+.action-panel.short{border-color:var(--red);background:rgba(255,77,97,.07)}
+.action-panel.no{border-color:var(--red);background:rgba(255,77,97,.045)}
+.act-label{font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.act-word{font-size:44px;font-weight:900;line-height:1;letter-spacing:-1px}
+.action-panel.wait .act-word{color:var(--amber)}
+.action-panel.go .act-word{color:var(--green)}
+.action-panel.short .act-word{color:var(--red)}
+.action-panel.no .act-word{color:var(--red)}
+.act-sub{font-size:18px;font-weight:800;margin-bottom:8px;color:var(--text)}
+.act-why{font-size:14px;line-height:1.55;color:var(--muted)}
+.act-levels{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.act-level{background:#0b1017;border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+.act-level span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.act-level b{font-size:19px;color:var(--text)}
+@media(max-width:760px){.action-panel{grid-template-columns:1fr}.act-word{font-size:36px}.act-levels{grid-template-columns:1fr}}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="card">
+    <h1>MES ORB Signal Dashboard</h1>
+    <p class="sub">
+      Opening Range Breakout · OR window 8:30–8:44 AM CT · Uses public data when available, with manual Topstep backup when public feeds are blocked.
+    </p>
+    <div class="row">
+      <button class="primary" onclick="fetchNow()">Refresh Public Data</button>
+      <button class="secondary" onclick="useManual()">Calculate From Manual Inputs</button>
+      <button class="warn" onclick="clearManual()">Clear Manual</button>
+    </div>
+    <p class="small" id="status">Ready.</p>
+    <div id="debug" class="err"></div>
+  </div>
+
+  <!-- Countdown banner -->
+  <div class="countdown-banner pre" id="cdBanner">
+    <div class="cd-left">
+      <div class="cd-phase" id="cdPhase">PRE-MARKET</div>
+      <div class="cd-desc" id="cdDesc">Trade window opens at 9:00 AM CT</div>
+    </div>
+    <div class="cd-timer" id="cdTimer">--:--</div>
+  </div>
+
+
+  <div class="action-panel wait" id="actionPanel">
+    <div>
+      <div class="act-label">What do I do right now?</div>
+      <div class="act-word" id="actWord">WAIT</div>
+    </div>
+    <div>
+      <div class="act-sub" id="actSub">Waiting for data and a clean MES setup.</div>
+      <div class="act-why" id="actWhy">Rule: no clean setup = no trade. This should say WAIT most of the time.</div>
+      <div class="act-levels" id="actLevels" style="display:none">
+        <div class="act-level"><span>Entry</span><b id="actEntry">—</b></div>
+        <div class="act-level"><span>Target</span><b id="actTarget">—</b></div>
+        <div class="act-level"><span>Stop</span><b id="actStop">—</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="metric"><label>Current Price</label><div class="val green" id="price">---</div></div>
+    <div class="metric"><label>Day High</label><div class="val green" id="dayHigh">---</div></div>
+    <div class="metric"><label>Day Low</label><div class="val red" id="dayLow">---</div></div>
+    <div class="metric"><label>OR High</label><div class="val amber" id="orHigh">---</div></div>
+    <div class="metric"><label>OR Low</label><div class="val amber" id="orLow">---</div></div>
+    <div class="metric"><label>OR Width</label><div class="val blue" id="orWidth">---</div></div>
+    <div class="metric"><label>OR Width Quality</label><div class="val" id="adxVal">---</div></div>
+    <div class="metric"><label>Range Signal</label><div class="val" id="adxSig">---</div></div>
+    <div class="metric"><label>News Today</label><div class="val" id="newsVal" style="font-size:13px">---</div></div>
+    <div class="metric"><label>News Filter</label><div class="val" id="newsSig">---</div></div>
+  </div>
+
+  <div class="card">
+    <div class="signal" id="signal">WAIT</div>
+    <p class="sub" id="signalSub">Waiting for data.</p>
+    <div id="levels" class="small"></div>
+    <div id="adxWarning"  style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;background:#1a1200;border:1px solid #ffbe55;color:#ffbe55;font-size:14px;font-weight:700;"></div>
+    <div id="newsWarning" style="display:none;margin-top:8px;padding:10px 14px;border-radius:8px;background:#1a0a00;border:1px solid #ff4d61;color:#ff4d61;font-size:14px;font-weight:700;"></div>
+  </div>
+
+  <div class="card">
+    <h2>Manual Topstep Backup Mode</h2>
+    <p class="sub">
+      Use this when the public feed is blocked. Pull the values from TopstepX / TradingView, enter them here, then press “Calculate From Manual Inputs.”
+    </p>
+
+    <div class="formgrid">
+      <div>
+        <label class="small">Current Price</label>
+        <input id="mPrice" type="number" step="0.25" placeholder="7434.75">
+      </div>
+      <div>
+        <label class="small">Day High</label>
+        <input id="mDayHigh" type="number" step="0.25" placeholder="7440.00">
+      </div>
+      <div>
+        <label class="small">Day Low</label>
+        <input id="mDayLow" type="number" step="0.25" placeholder="7405.00">
+      </div>
+      <div>
+        <label class="small">OR High</label>
+        <input id="mOrHigh" type="number" step="0.25" placeholder="7437.25">
+      </div>
+      <div>
+        <label class="small">OR Low</label>
+        <input id="mOrLow" type="number" step="0.25" placeholder="7406.75">
+      </div>
+      <div>
+        <label class="small">Max OR Width</label>
+        <input id="mMaxOr" type="number" step="0.25" value="35">
+      </div>
+    </div>
+
+    <hr>
+    <p class="small">
+      <span class="pill">5 MES contracts</span>
+      <span class="pill">10 pt stop = $250 risk</span>
+      <span class="pill">15 pt target = $375 profit</span>
+      <span class="pill">OR sweet spot: 15–30 pts</span>
+      <span class="pill">Use brackets in TopstepX</span>
+    </p>
+  </div>
+
+</div>
+
+<script>
+const DEFAULT_MAX_OR = 35;
+const PT = 15;
+const SL = 10;
+const WORKER_BASE = 'https://mnq-data-proxy.bradford-lamb.workers.dev/'; // Reusable Yahoo proxy. Works for MES/ES/NQ/MNQ symbols.
+
+function setText(id, val){ document.getElementById(id).textContent = val; }
+function fmt(n){ return Number(n).toFixed(2); }
+
+// ── ECONOMIC CALENDAR ────────────────────────────────────────────
+// High-impact news events that make ORB unreliable.
+// Source: known recurring schedule. Dates updated monthly.
+// Format: 'YYYY-MM-DD': ['Event name', ...]
+const HIGH_IMPACT_EVENTS = {
+  // FOMC meetings 2026
+  '2026-01-28': ['FOMC Rate Decision'],
+  '2026-01-29': ['FOMC Rate Decision'],
+  '2026-03-18': ['FOMC Rate Decision'],
+  '2026-03-19': ['FOMC Rate Decision'],
+  '2026-05-06': ['FOMC Rate Decision'],
+  '2026-05-07': ['FOMC Rate Decision'],
+  '2026-06-17': ['FOMC Rate Decision'],
+  '2026-06-18': ['FOMC Rate Decision'],
+  '2026-07-28': ['FOMC Rate Decision'],
+  '2026-07-29': ['FOMC Rate Decision'],
+  '2026-09-15': ['FOMC Rate Decision'],
+  '2026-09-16': ['FOMC Rate Decision'],
+  '2026-11-04': ['FOMC Rate Decision'],
+  '2026-11-05': ['FOMC Rate Decision'],
+  '2026-12-15': ['FOMC Rate Decision'],
+  '2026-12-16': ['FOMC Rate Decision'],
+  // CPI releases 2026 (usually 2nd or 3rd Tuesday/Wednesday)
+  '2026-01-15': ['CPI Report'],
+  '2026-02-12': ['CPI Report'],
+  '2026-03-12': ['CPI Report'],
+  '2026-04-10': ['CPI Report'],
+  '2026-05-13': ['CPI Report'],
+  '2026-05-19': ['CPI Report'],
+  '2026-06-11': ['CPI Report'],
+  '2026-07-14': ['CPI Report'],
+  '2026-08-13': ['CPI Report'],
+  '2026-09-11': ['CPI Report'],
+  '2026-10-13': ['CPI Report'],
+  '2026-11-12': ['CPI Report'],
+  '2026-12-10': ['CPI Report'],
+  // NFP (Non-Farm Payrolls) 2026 - first Friday of month
+  '2026-01-09': ['NFP Jobs Report'],
+  '2026-02-06': ['NFP Jobs Report'],
+  '2026-03-06': ['NFP Jobs Report'],
+  '2026-04-03': ['NFP Jobs Report'],
+  '2026-05-08': ['NFP Jobs Report'],
+  '2026-06-05': ['NFP Jobs Report'],
+  '2026-07-10': ['NFP Jobs Report'],
+  '2026-08-07': ['NFP Jobs Report'],
+  '2026-09-04': ['NFP Jobs Report'],
+  '2026-10-02': ['NFP Jobs Report'],
+  '2026-11-06': ['NFP Jobs Report'],
+  '2026-12-04': ['NFP Jobs Report'],
+  // GDP releases (advance estimate, ~last Thursday of month)
+  '2026-01-29': ['GDP Report'],
+  '2026-04-29': ['GDP Report'],
+  '2026-07-29': ['GDP Report'],
+  '2026-10-28': ['GDP Report'],
+};
+
+function checkNewsToday() {
+  const ct = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Chicago'}));
+  const key = ct.toISOString().slice(0,10);
+  return HIGH_IMPACT_EVENTS[key] || null;
+}
+
+// ── GAP CALCULATION ───────────────────────────────────────────────
+// Gap = today's open vs yesterday's close
+// Large gaps (>25 pts) = unreliable ORB day
+function calcGap(bars) {
+  if (!bars || bars.length < 2) return null;
+  // Find first bar of today's regular session (after 8:30 AM CT)
+  let todayOpen = null;
+  let prevClose = null;
+  let prevDate  = null;
+
+  for (const b of bars) {
+    const ct   = new Date(b.t.toLocaleString('en-US', {timeZone:'America/Chicago'}));
+    const mins = ct.getHours() * 60 + ct.getMinutes();
+    const dateStr = ct.toISOString().slice(0,10);
+
+    if (mins >= 510 && todayOpen === null) {
+      todayOpen = b.c; // first bar at/after 8:30 AM
+    }
+    if (prevDate && dateStr !== prevDate) {
+      // day changed — prevClose is last bar of previous day
+    }
+    prevDate  = dateStr;
+    prevClose = b.c;
+  }
+
+  // Simpler: use day high/low range vs OR position
+  // Just return today's open bar value for now
+  return todayOpen;
+}
+
+// ── ADX CALCULATION ──────────────────────────────────────────────
+// ADX measures trend STRENGTH (not direction).
+// Needs at least 60+ bars (5 hours of 5-min data) to be meaningful.
+// <20 = choppy (SKIP), 20-25 = borderline, >25 = trending (TRADE)
+//
+// KEY FIX: We use ALL bars loaded (full day including pre-market)
+// not just the 8:30-8:44 window. This gives ADX enough data to
+// produce a valid 0-100 reading.
+
+function calcADX(bars, period = 14) {
+  if (!bars || bars.length < period * 3) return null;
+
+  const trueRanges = [];
+  const plusDMs    = [];
+  const minusDMs   = [];
+
+  for (let i = 1; i < bars.length; i++) {
+    const h  = bars[i].h,   l  = bars[i].l,   pc = bars[i-1].c;
+    const ph = bars[i-1].h, pl = bars[i-1].l;
+    const tr = Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
+    const up = h - ph, dn = pl - l;
+    trueRanges.push(tr);
+    plusDMs.push(up > dn && up > 0 ? up : 0);
+    minusDMs.push(dn > up && dn > 0 ? dn : 0);
+  }
+
+  function wilderSmooth(arr, p) {
+    if (arr.length < p) return [];
+    let sum = arr.slice(0, p).reduce((a, b) => a + b, 0);
+    const out = [sum];
+    for (let i = p; i < arr.length; i++) {
+      sum = sum - sum / p + arr[i];
+      out.push(sum);
+    }
+    return out;
+  }
+
+  const sTR  = wilderSmooth(trueRanges, period);
+  const sPDM = wilderSmooth(plusDMs,    period);
+  const sMDM = wilderSmooth(minusDMs,   period);
+  if (!sTR.length) return null;
+
+  const dx = sTR.map((tr, i) => {
+    if (tr === 0) return 0;
+    const pip = sPDM[i] / tr * 100;
+    const mip = sMDM[i] / tr * 100;
+    const s   = pip + mip;
+    return s === 0 ? 0 : Math.abs(pip - mip) / s * 100;
+  });
+
+  const adxArr = wilderSmooth(dx, period);
+  if (!adxArr.length) return null;
+
+  // Clamp to 0-100
+  return Math.min(100, Math.max(0, adxArr[adxArr.length - 1]));
+}
+
+function calcSignal({price, dayHigh, dayLow, orHigh, orLow, bars, source}) {
+  if (![price, orHigh, orLow].every(Number.isFinite)) {
+    setText('signal', 'NO DATA');
+    setText('signalSub', 'Need current price, OR high, and OR low.');
+    document.getElementById('levels').innerHTML = '';
+    setMasterAction('wait','WAIT','Need current price, OR high, and OR low.', 'Load Cloudflare data or use manual Topstep inputs.', null);
+    return;
+  }
+
+  const maxOr = Number(document.getElementById('mMaxOr').value || DEFAULT_MAX_OR);
+  const width = orHigh - orLow;
+
+  setText('price', fmt(price));
+  setText('dayHigh', Number.isFinite(dayHigh) ? fmt(dayHigh) : '---');
+  setText('dayLow',  Number.isFinite(dayLow)  ? fmt(dayLow)  : '---');
+  setText('orHigh',  fmt(orHigh));
+  setText('orLow',   fmt(orLow));
+  setText('orWidth', width.toFixed(2) + ' pts');
+
+  // ── NEWS FILTER ──────────────────────────────────────────────
+  const newsEl    = document.getElementById('newsVal');
+  const newsSigEl = document.getElementById('newsSig');
+  const newsWarn  = document.getElementById('newsWarning');
+  const todayNews = checkNewsToday();
+  let newsOk = true;
+
+  if (todayNews && todayNews.length > 0) {
+    newsEl.textContent    = todayNews.join(', ');
+    newsEl.className      = 'val red';
+    newsSigEl.textContent = 'HIGH IMPACT ✗';
+    newsSigEl.className   = 'val red';
+    newsWarn.style.display = 'block';
+    newsWarn.textContent  = '⛔ High-impact news today: ' + todayNews.join(', ') + ' — Market moves on news, not technicals. SKIP TODAY.';
+    newsOk = false;
+  } else {
+    newsEl.textContent    = 'None';
+    newsEl.className      = 'val green';
+    newsSigEl.textContent = 'CLEAR ✓';
+    newsSigEl.className   = 'val green';
+    newsWarn.style.display = 'none';
+    newsOk = true;
+  }
+
+  // ── OR WIDTH QUALITY FILTER ─────────────────────────────────
+  // Backtested on 61 days of real MES data:
+  // OR  <15pts  = 36% win rate  (SKIP — too tight)
+  // OR 15-30pts = 71% win rate  (SWEET SPOT — trade it)
+  // OR 30-35pts = caution       (borderline — proceed carefully)
+  // OR  >35pts  = SKIP          (too wide)
+  const adxEl    = document.getElementById('adxVal');
+  const adxSigEl = document.getElementById('adxSig');
+  const adxWarn  = document.getElementById('adxWarning');
+  let adxOk = true;
+
+  if (Number.isFinite(width)) {
+    adxEl.textContent = width.toFixed(1) + ' pts';
+    if (width >= 15 && width <= 30) {
+      adxEl.className    = 'val green';
+      adxSigEl.textContent = 'SWEET SPOT ✓';
+      adxSigEl.className = 'val green';
+      adxWarn.style.display = 'none';
+      adxOk = true;
+    } else if (width > 30 && width <= 35) {
+      adxEl.className    = 'val amber';
+      adxSigEl.textContent = 'WIDE — CAUTION';
+      adxSigEl.className = 'val amber';
+      adxWarn.style.display = 'block';
+      adxWarn.textContent = '⚠ OR width ' + width.toFixed(1) + ' pts — getting wide. Proceed carefully, stop rules apply.';
+      adxOk = true;
+    } else if (width < 15 && width > 0) {
+      adxEl.className    = 'val red';
+      adxSigEl.textContent = 'TOO TIGHT ✗';
+      adxSigEl.className = 'val red';
+      adxWarn.style.display = 'block';
+      adxWarn.textContent = '⛔ OR width ' + width.toFixed(1) + ' pts — too tight. Only 36% win rate historically on narrow ranges. SKIP TODAY.';
+      adxOk = false;
+    } else {
+      adxEl.className    = 'val';
+      adxSigEl.textContent = '---';
+      adxSigEl.className = 'val';
+      adxWarn.style.display = 'none';
+    }
+  } else {
+    adxEl.textContent    = 'N/A';
+    adxSigEl.textContent = 'No data';
+    adxWarn.style.display = 'none';
+  }
+
+  let signal = 'WAIT';
+  let sub = 'No breakout yet.';
+  let levels = '';
+
+  if (width > maxOr) {
+    signal = 'SKIP DAY';
+    sub = 'OR width is ' + width.toFixed(2) + ' pts — above ' + maxOr + ' pt max. Range too wide.';
+  } else if (!adxOk) {
+    signal = 'SKIP DAY';
+    sub = 'OR width ' + width.toFixed(1) + ' pts is too tight (<15pts). Backtest shows only 36% win rate on narrow ranges. Wait for a better setup.';
+  } else if (!newsOk) {
+    signal = 'SKIP DAY';
+    sub = 'High-impact news today: ' + (todayNews ? todayNews.join(', ') : '?') + ' — market moves on news not technicals.';
+  } else if (price > orHigh) {
+    signal = 'LONG';
+    sub = 'Price is above OR High. VWAP filter: confirm price is above VWAP on your chart.';
+    levels = 'Entry: ' + fmt(orHigh) + ' | Target: ' + fmt(orHigh + PT) + ' | Stop: ' + fmt(orHigh - SL) + ' | 5 contracts: Risk $250 / Profit $375';
+  } else if (price < orLow) {
+    signal = 'SHORT';
+    sub = 'Price is below OR Low. VWAP filter: confirm price is below VWAP on your chart.';
+    levels = 'Entry: ' + fmt(orLow) + ' | Target: ' + fmt(orLow - PT) + ' | Stop: ' + fmt(orLow + SL) + ' | 5 contracts: Risk $250 / Profit $375';
+  } else {
+    signal = 'WAIT';
+    sub = 'Price is still inside the OR. No breakout yet.';
+  }
+
+  // Color the signal
+  const sigEl = document.getElementById('signal');
+  sigEl.textContent = signal;
+  sigEl.style.color = signal === 'LONG' ? 'var(--green)' :
+                      signal === 'SHORT' ? 'var(--red)' :
+                      signal === 'SKIP DAY' ? 'var(--amber)' : 'var(--text)';
+
+  setText('signalSub', sub + '  Source: ' + source + '.');
+  document.getElementById('levels').innerHTML = levels;
+  updateActionPanel(signal, price, orHigh, orLow, width, maxOr, newsOk, adxOk);
+}
+
+function setMasterAction(kind, word, sub, why, levels){
+  const panel = document.getElementById('actionPanel');
+  if(!panel) return;
+  panel.className = 'action-panel ' + (kind || 'wait');
+  document.getElementById('actWord').textContent = word || 'WAIT';
+  document.getElementById('actSub').textContent = sub || 'Waiting for a clean setup.';
+  document.getElementById('actWhy').textContent = why || 'Rule: no clean setup = no trade.';
+  const box = document.getElementById('actLevels');
+  if(levels){
+    box.style.display = 'grid';
+    document.getElementById('actEntry').textContent = levels.entry || '—';
+    document.getElementById('actTarget').textContent = levels.target || '—';
+    document.getElementById('actStop').textContent = levels.stop || '—';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+function updateActionPanel(signal, price, orHigh, orLow, width, maxOr, newsOk, adxOk){
+  if(signal === 'SKIP DAY'){
+    setMasterAction('no','SKIP DAY','Do not trade MES today.', 'One of the required filters failed: OR width, news filter, or range quality. Come back tomorrow.', null);
+    return;
+  }
+  if(signal === 'LONG'){
+    setMasterAction('go','WATCH LONG','Do not chase. Wait for pullback/retest of OR High.', 'If price pulls back to the OR High and bounces, BUY MES using the bracket levels below. If it never retests, no trade.', {
+      entry: fmt(orHigh), target: fmt(orHigh + PT), stop: fmt(orHigh - SL)
+    });
+    return;
+  }
+  if(signal === 'SHORT'){
+    setMasterAction('short','WATCH SHORT','Do not chase. Wait for pullback/retest of OR Low.', 'If price bounces back to the OR Low and rejects, SELL MES using the bracket levels below. If it never retests, no trade.', {
+      entry: fmt(orLow), target: fmt(orLow - PT), stop: fmt(orLow + SL)
+    });
+    return;
+  }
+  setMasterAction('wait','WAIT','No MES trade is active right now.', 'Price is inside the opening range or the trade window/setup is not clean. Best action is no action.', null);
+}
+
+function useManual(){
+  const vals = {
+    price: Number(document.getElementById('mPrice').value),
+    dayHigh: Number(document.getElementById('mDayHigh').value),
+    dayLow: Number(document.getElementById('mDayLow').value),
+    orHigh: Number(document.getElementById('mOrHigh').value),
+    orLow: Number(document.getElementById('mOrLow').value),
+    bars: [],
+    source: 'Manual Topstep input'
+  };
+  calcSignal(vals);
+  document.getElementById('status').textContent = 'Calculated from manual Topstep values.';
+}
+
+function clearManual(){
+  ['mPrice','mDayHigh','mDayLow','mOrHigh','mOrLow'].forEach(id=>document.getElementById(id).value='');
+}
+
+async function tryFetch(url, label){
+  const res = await fetch(url, {cache:'no-store'});
+  if(!res.ok) throw new Error(`${label}: HTTP ${res.status}`);
+  const txt = await res.text();
+  if(txt.trim().startsWith('<')) throw new Error(`${label}: returned HTML, not JSON`);
+  return JSON.parse(txt);
+}
+
+async function fetchWorkerSymbol(symbol){
+  const url = `${WORKER_BASE}?symbol=${encodeURIComponent(symbol)}`;
+  const data = await tryFetch(url, `Cloudflare Worker ${symbol}`);
+  const r = data?.chart?.result?.[0];
+  const err = data?.chart?.error;
+  if (err) throw new Error(`Cloudflare Worker ${symbol}: ${err.description || JSON.stringify(err)}`);
+  if(!r?.timestamp || !r?.indicators?.quote?.[0]) throw new Error(`Cloudflare Worker ${symbol}: missing chart data`);
+  return {result:r, source:`Cloudflare Worker Yahoo proxy`};
+}
+
+async function fetchYahooSymbol(symbol){
+  const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1m&range=1d&includePrePost=true`;
+  const attempts = [
+    {label:`direct ${symbol}`, url:base},
+    {label:`allorigins raw ${symbol}`, url:`https://api.allorigins.win/raw?url=${encodeURIComponent(base)}`},
+    {label:`allorigins get ${symbol}`, url:`https://api.allorigins.win/get?url=${encodeURIComponent(base)}`, unwrap:'contents'},
+    {label:`corsproxy ${symbol}`, url:`https://corsproxy.io/?${encodeURIComponent(base)}`},
+    {label:`codetabs ${symbol}`, url:`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(base)}`}
+  ];
+
+  const errors = [];
+
+  for (const a of attempts){
+    try{
+      const data = await tryFetch(a.url, a.label);
+      const parsed = a.unwrap === 'contents' ? JSON.parse(data.contents) : data;
+      const r = parsed?.chart?.result?.[0];
+      if(!r?.timestamp || !r?.indicators?.quote?.[0]) throw new Error(`${a.label}: missing chart data`);
+      return {result:r, source:a.label};
+    }catch(e){
+      errors.push(e.message);
+    }
+  }
+  throw new Error(errors.join('\n'));
+}
+
+function convertBars(result){
+  const ts = result.timestamp;
+  const q = result.indicators.quote[0];
+  const bars = [];
+  for(let i=0;i<ts.length;i++){
+    if(q.close[i] == null) continue;
+    bars.push({
+      t:new Date(ts[i]*1000),
+      h:Number(q.high[i] ?? q.close[i]),
+      l:Number(q.low[i] ?? q.close[i]),
+      c:Number(q.close[i])
+    });
+  }
+  return bars;
+}
+
+function getOR(bars){
+  let orHigh = -Infinity;
+  let orLow = Infinity;
+  let found = false;
+
+  for(const b of bars){
+    const ct = new Date(b.t.toLocaleString('en-US',{timeZone:'America/Chicago'}));
+    const mins = ct.getHours()*60 + ct.getMinutes();
+    if(mins >= 510 && mins <= 524){
+      orHigh = Math.max(orHigh, b.h);
+      orLow = Math.min(orLow, b.l);
+      found = true;
+    }
+  }
+
+  return found ? {orHigh, orLow} : {orHigh:NaN, orLow:NaN};
+}
+
+async function fetchNow(){
+  document.getElementById('status').textContent = 'Trying Cloudflare data proxy...';
+  document.getElementById('debug').textContent = '';
+
+  // Prefer MES first. If Yahoo does not return MES cleanly, fall back to ES.
+  const symbols = ['MES=F','ES=F'];
+
+  for(const symbol of symbols){
+    try{
+      let result, source;
+      try {
+        ({result, source} = await fetchWorkerSymbol(symbol));
+      } catch(workerErr) {
+        document.getElementById('debug').textContent += `\n${symbol} worker failed:\n${workerErr.message}\nTrying browser fallback...\n`;
+        ({result, source} = await fetchYahooSymbol(symbol));
+      }
+
+      const bars = convertBars(result);
+      if(!bars.length) throw new Error(`${symbol}: no bars`);
+
+      const price = bars[bars.length-1].c;
+      const dayHigh = Math.max(...bars.map(b=>b.h));
+      const dayLow  = Math.min(...bars.map(b=>b.l));
+      const {orHigh, orLow} = getOR(bars);
+
+      calcSignal({
+        price,
+        dayHigh,
+        dayLow,
+        orHigh,
+        orLow,
+        bars,
+        source: `${source} (${symbol})`
+      });
+
+      const ct = new Date().toLocaleTimeString('en-US',{hour:'2-digit', minute:'2-digit', timeZone:'America/Chicago'});
+      document.getElementById('status').textContent = `Loaded ${bars.length} bars from ${source} (${symbol}) at ${ct} CT. Auto-refresh: 1x/min.`;
+      return;
+    }catch(e){
+      document.getElementById('debug').textContent += `\n${symbol} failed:\n${e.message}\n`;
+    }
+  }
+
+  setText('signal','DATA FEED BLOCKED');
+  setText('signalSub','Cloudflare/Yahoo feed failed. Use Manual Topstep Backup Mode below.');
+  setMasterAction('no','DATA BLOCKED','Use Manual Topstep Backup Mode.', 'The Cloudflare/Yahoo feed did not load. Enter MES values manually from TopstepX.', null);
+  document.getElementById('status').textContent = 'Feeds blocked. Manual mode is ready.';
+}
+
+// ── COUNTDOWN + PHASE CLOCK ──────────────────────────────────────
+function getCTNow() {
+  return new Date(new Date().toLocaleString('en-US', {timeZone: 'America/Chicago'}));
+}
+
+function pad2(n) { return String(n).padStart(2,'0'); }
+
+function fmtCountdown(totalSecs) {
+  if (totalSecs <= 0) return '00:00';
+  const m = Math.floor(totalSecs / 60);
+  const s = totalSecs % 60;
+  if (m >= 60) {
+    return pad2(Math.floor(m/60)) + ':' + pad2(m%60) + ':' + pad2(s);
+  }
+  return pad2(m) + ':' + pad2(s);
+}
+
+function updateCountdown() {
+  const now   = getCTNow();
+  const h     = now.getHours();
+  const m     = now.getMinutes();
+  const s     = now.getSeconds();
+  const total = h * 3600 + m * 60 + s;
+
+  const banner  = document.getElementById('cdBanner');
+  const phase   = document.getElementById('cdPhase');
+  const desc    = document.getElementById('cdDesc');
+  const timer   = document.getElementById('cdTimer');
+
+  // Key times in seconds from midnight
+  const T_OPEN    = 8*3600 + 30*60;   // 8:30 AM
+  const T_TRADE   = 9*3600;            // 9:00 AM — window opens
+  const T_CUTOFF  = 10*3600;           // 10:00 AM — our cutoff (best signals)
+  const T_CLOSE   = 14*3600 + 45*60;  // 2:45 PM — force close
+
+  if (total < T_OPEN) {
+    // Pre-market
+    banner.className = 'countdown-banner pre';
+    phase.textContent  = 'PRE-MARKET';
+    desc.textContent   = 'Market opens 8:30 AM CT — OR window starts then';
+    timer.textContent  = fmtCountdown(T_OPEN - total);
+
+  } else if (total < T_TRADE) {
+    // OR window forming
+    banner.className = 'countdown-banner closing';
+    phase.textContent  = 'OPENING RANGE FORMING';
+    desc.textContent   = 'Note OR High & Low — trade window opens at 9:00 AM';
+    timer.textContent  = fmtCountdown(T_TRADE - total);
+
+  } else if (total < T_CUTOFF) {
+    // Trade window OPEN — sweet spot
+    banner.className = 'countdown-banner open';
+    phase.textContent  = '🟢  TRADE WINDOW OPEN';
+    desc.textContent   = 'Best signals fire before 10:00 AM — check signal now';
+    timer.textContent  = fmtCountdown(T_CUTOFF - total);
+
+  } else if (total < T_CLOSE) {
+    // After 10 AM — window technically open but low probability
+    banner.className = 'countdown-banner closed';
+    phase.textContent  = 'LOW PROBABILITY ZONE';
+    desc.textContent   = 'After 10:00 AM signals are historically 0% win rate. Close the app.';
+    timer.textContent  = '—';
+
+    // Override any active WAIT signal to NO SIGNAL
+    const sigEl = document.getElementById('signal');
+    if (sigEl && sigEl.textContent === 'WAIT') {
+      sigEl.textContent  = 'NO SIGNAL';
+      sigEl.style.color  = '#555';
+      document.getElementById('signalSub').textContent =
+        'Trade window past 10:00 AM — historically 0% win rate after this time. Done for today.';
+    }
+
+  } else {
+    // Force close time
+    banner.className = 'countdown-banner closed';
+    phase.textContent  = '🔴  CLOSE ALL POSITIONS';
+    desc.textContent   = '2:45 PM CT — flatten everything in TopstepX now';
+    timer.textContent  = 'NOW';
+  }
+}
+
+// Run countdown every second
+updateCountdown();
+setInterval(updateCountdown, 1000);
+
+fetchNow();
+setInterval(fetchNow, 60000);
+</script>
+</body>
+</html>
